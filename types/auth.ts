@@ -1,28 +1,30 @@
 export interface LoginRequest {
-  identifier: string;
-  passwordm: string;
+  usr: string;
+  pwd: string;
+}
+
+export interface KeyDetails {
+  api_secret: string;
+  api_key: string;
 }
 
 export interface User {
-  name: string;
-  owner: string;
-  creation: string;
-  modified: string;
-  modified_by: string;
-  docstatus: number;
-  idx: number;
-  user_name: string;
-  emailm: string;
-  doctype: string;
+  full_name: string;
+  user: string;
+  employee_id: string;
+  gender: string;
+  key_details: KeyDetails;
 }
 
 export interface LoginResponse {
-  message: {
-    status: string;
-    message: string;
-    token: string;
-    user: User;
-  };
+  message: string;
+  home_page: string;
+  full_name: string;
+  user: string;
+  key_details: KeyDetails;
+  employee_id: string;
+  gender: string;
+  data: any[];
 }
 
 export interface AuthState {
@@ -37,4 +39,3 @@ export interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
 }
-

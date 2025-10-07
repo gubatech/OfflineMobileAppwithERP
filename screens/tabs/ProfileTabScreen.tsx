@@ -9,7 +9,7 @@ import {
   Animated,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { StorageService } from '../../services/storage';
@@ -130,16 +130,16 @@ export const ProfileTabScreen: React.FC<ProfileTabScreenProps> = ({ navigation }
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
+      <View className="flex-1 items-center justify-center bg-gray-50">
         <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
         <ActivityIndicator size="large" color="#00963f" />
         <Text className="mt-4 text-gray-600">Loading profile...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
       <ScrollView
         className="flex-1"
@@ -381,6 +381,6 @@ export const ProfileTabScreen: React.FC<ProfileTabScreenProps> = ({ navigation }
           </Animated.View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

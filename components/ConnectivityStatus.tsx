@@ -25,4 +25,3 @@ export const ConnectivityStatus: React.FC = () => {
     </View>
   );
 };
-

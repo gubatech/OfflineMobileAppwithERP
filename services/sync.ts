@@ -2,7 +2,7 @@ import { AgricultureData } from '../types/agriculture';
 import { StorageService } from './storage';
 import { AuthService } from './auth';
 
-const API_BASE_URL = 'https://example.com/api';
+const API_BASE_URL = 'https://demo.ettelerp.com/api';
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 2000; // 2 seconds
 

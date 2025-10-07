@@ -8,7 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// View removed
 import { AgricultureData } from '../types/agriculture';
 import { StorageService } from '../services/storage';
 import { SyncService } from '../services/sync';
@@ -197,15 +197,15 @@ export const DataListScreen: React.FC<DataListScreenProps> = ({ navigation }) =>
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
+      <View className="flex-1 items-center justify-center bg-gray-50">
         <ActivityIndicator size="large" color="#10b981" />
         <Text className="mt-4 text-gray-600">Loading data...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ConnectivityStatus />
       <View className="px-4 py-4">
         {/* Header */}
@@ -280,6 +280,6 @@ export const DataListScreen: React.FC<DataListScreenProps> = ({ navigation }) =>
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };

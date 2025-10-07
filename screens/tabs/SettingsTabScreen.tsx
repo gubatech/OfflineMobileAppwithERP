@@ -8,7 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BackgroundSyncService } from '../../services/backgroundSync';
 import { StorageService } from '../../services/storage';
@@ -160,7 +160,7 @@ export const SettingsTabScreen: React.FC<SettingsTabScreenProps> = ({ navigation
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 20) }}>
@@ -438,6 +438,6 @@ export const SettingsTabScreen: React.FC<SettingsTabScreenProps> = ({ navigation
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

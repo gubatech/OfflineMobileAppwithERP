@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeTabScreen } from '../screens/tabs/HomeTabScreen';
+import { RecordsTabScreen } from '../screens/tabs/RecordsTabScreen';
 import { StatisticsTabScreen } from '../screens/tabs/StatisticsTabScreen';
 import { ProfileTabScreen } from '../screens/tabs/ProfileTabScreen';
 import { SettingsTabScreen } from '../screens/tabs/SettingsTabScreen';
@@ -9,6 +10,7 @@ import { TabIcon } from '../components/TabIcon';
 
 export type TabParamList = {
   Home: undefined;
+  Records: undefined;
   Statistics: undefined;
   Profile: undefined;
   Settings: undefined;
@@ -34,10 +36,19 @@ export const TabNavigator: React.FC = () => {
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
           height: 60 + insets.bottom,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 4,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
         },
       })}>
       <Tab.Screen
@@ -45,6 +56,14 @@ export const TabNavigator: React.FC = () => {
         component={HomeTabScreen}
         options={{
           title: 'Home',
+          headerShown: false,
+        }}
+      />
+      <Tab.Screen
+        name="Records"
+        component={RecordsTabScreen}
+        options={{
+          title: 'Records',
           headerShown: false,
         }}
       />

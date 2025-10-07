@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StorageService } from '../../services/storage';
 import { AgricultureData } from '../../types/agriculture';
@@ -180,17 +180,17 @@ export const StatisticsTabScreen: React.FC<StatisticsTabScreenProps> = ({ naviga
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
+      <View className="flex-1 items-center justify-center bg-gray-50">
         <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
         <ActivityIndicator size="large" color="#00963f" />
         <Text className="mt-4 text-gray-600">Loading statistics...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!statistics) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-gray-50">
+      <View className="flex-1 items-center justify-center bg-gray-50">
         <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
         <Ionicons name="alert-circle" size={48} color="#6b7280" />
         <Text className="mt-4 text-gray-600">Failed to load statistics</Text>
@@ -199,12 +199,12 @@ export const StatisticsTabScreen: React.FC<StatisticsTabScreenProps> = ({ naviga
           className="mt-4 rounded-xl bg-[#00963f] px-6 py-3">
           <Text className="font-semibold text-white">Retry</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
 
       {/* Header Gradient */}
@@ -331,7 +331,7 @@ export const StatisticsTabScreen: React.FC<StatisticsTabScreenProps> = ({ naviga
           <View className="space-y-3">
             <TouchableOpacity
               onPress={() => navigation.navigate('DataCollection')}
-              className="flex-row items-center justify-between rounded-xl bg-[#00963f] p-4 mb-2">
+              className="mb-2 flex-row items-center justify-between rounded-xl bg-[#00963f] p-4">
               <View className="flex-row items-center">
                 <Ionicons name="add-circle" size={24} color="white" />
                 <Text className="ml-3 font-semibold text-white">Collect New Data</Text>
@@ -374,6 +374,6 @@ export const StatisticsTabScreen: React.FC<StatisticsTabScreenProps> = ({ naviga
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };

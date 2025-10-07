@@ -1,4 +1,4 @@
-export type CropType = 
+export type CropType =
   | 'Wheat'
   | 'Rice'
   | 'Corn'
@@ -11,7 +11,7 @@ export type CropType =
   | 'Lettuce'
   | 'Other';
 
-export type IrrigationMethod = 
+export type IrrigationMethod =
   | 'Drip Irrigation'
   | 'Sprinkler Irrigation'
   | 'Flood Irrigation'

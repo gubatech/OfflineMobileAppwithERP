@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'expo-camera';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// View removed
 import { StorageService } from '../services/storage';
 import { CropType, IrrigationMethod } from '../types/agriculture';
 import { ConnectivityStatus } from '../components/ConnectivityStatus';
@@ -214,7 +214,7 @@ export const DataCollectionScreen: React.FC<DataCollectionScreenProps> = ({ navi
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ConnectivityStatus />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -323,7 +323,7 @@ export const DataCollectionScreen: React.FC<DataCollectionScreenProps> = ({ navi
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 

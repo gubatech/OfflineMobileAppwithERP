@@ -1,1127 +1,816 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  StyleSheet,
-  Image,
-  StatusBar,
   ScrollView,
+  TouchableOpacity,
+  StatusBar,
+  Animated,
+  TextInput,
+  ImageBackground,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AgricultureData } from '../../types/agriculture';
-import { StorageService } from '../../services/storage';
-import { SyncService } from '../../services/sync';
-import { ConnectivityStatus } from '../../components/ConnectivityStatus';
-import { useAuth } from '../../contexts/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import { BottomSheet } from '../../components/BottomSheet';
 
-interface HomeTabScreenProps {
-  navigation: any;
+interface ERPModule {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+  description: string;
+  category: string;
+  gradient: string[];
 }
 
-export const HomeTabScreen: React.FC<HomeTabScreenProps> = ({ navigation }) => {
-  const { user } = useAuth();
+export const HomeTabScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const [data, setData] = useState<AgricultureData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStats, setSyncStats] = useState({
-    totalRecords: 0,
-    syncedRecords: 0,
-    pendingRecords: 0,
-    lastSyncTime: null as string | null,
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const headerScale = useRef(new Animated.Value(1)).current;
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showTaskBottomSheet, setShowTaskBottomSheet] = useState(false);
+  const [showLeaveBottomSheet, setShowLeaveBottomSheet] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Animation refs for cards
+  const cardAnimations = useRef<{
+    [key: string]: {
+      cardScale: Animated.Value;
+      iconScale: Animated.Value;
+      glowAnim: Animated.Value;
+    };
+  }>({}).current;
+
+  // Animation refs for category chips
+  const chipAnimations = useRef<{
+    [key: string]: {
+      chipScale: Animated.Value;
+      chipGlow: Animated.Value;
+    };
+  }>({}).current;
+
+  // Background animation refs
+  const backgroundAnim = useRef(new Animated.Value(0)).current;
+  const backgroundScale = useRef(new Animated.Value(1)).current;
+  const backgroundRotate = useRef(new Animated.Value(0)).current;
+
+  const categories = ['All', 'HR', 'Finance', 'Operations', 'Sales', 'Support'];
+
+  const taskOptions = [
+    { id: 'create-task', title: 'Create Tasks', icon: 'add-circle', color: '#10b981' },
+    { id: 'create-quick-task', title: 'Create Quick Tasks', icon: 'flash', color: '#f59e0b' },
+    { id: 'get-tasks', title: 'Get Tasks', icon: 'list', color: '#3b82f6' },
+    { id: 'update-tasks', title: 'Update Tasks', icon: 'create', color: '#8b5cf6' },
+    { id: 'update-progress', title: 'Update Task Progress', icon: 'trending-up', color: '#06b6d4' },
+    {
+      id: 'update-status',
+      title: 'Update Task Status',
+      icon: 'checkmark-circle',
+      color: '#10b981',
+    },
+    { id: 'get-projects', title: 'Get Project List', icon: 'folder', color: '#f97316' },
+    { id: 'get-status', title: 'Get Status List', icon: 'flag', color: '#ef4444' },
+    { id: 'get-task-list', title: 'Get Task List', icon: 'grid', color: '#6366f1' },
+    { id: 'get-task-by-id', title: 'Get Task by ID', icon: 'search', color: '#84cc16' },
+    { id: 'get-dashboard', title: 'Get Task List Dashboard', icon: 'analytics', color: '#ec4899' },
+  ];
+
+  const leaveOptions = [
+    { id: 'get-holiday-list', title: 'Get Holiday List', icon: 'calendar', color: '#10b981' },
+    {
+      id: 'make-leave-application',
+      title: 'Make Leave Application',
+      icon: 'add-circle',
+      color: '#3b82f6',
+    },
+    { id: 'get-leave-type', title: 'Get Leave Type', icon: 'list', color: '#8b5cf6' },
+    {
+      id: 'get-leave-balance-dashboard',
+      title: 'Get Leave Balance Dashboard',
+      icon: 'analytics',
+      color: '#f59e0b',
+    },
+    {
+      id: 'get-leave-application-list',
+      title: 'Get Leave Application List',
+      icon: 'document-text',
+      color: '#ef4444',
+    },
+  ];
+
+  const erpModules: ERPModule[] = [
+    {
+      id: 'task',
+      title: 'Task',
+      icon: 'checkmark-circle',
+      color: '#10b981',
+      description: 'Manage and track tasks',
+      category: 'Operations',
+      gradient: ['#6ee7b7', '#34d399', '#10b981'],
+    },
+    {
+      id: 'leave',
+      title: 'Leave',
+      icon: 'calendar',
+      color: '#f59e0b',
+      description: 'Manage leave requests',
+      category: 'HR',
+      gradient: ['#b45309', '#f59e0b', '#fde68a'],
+    },
+    {
+      id: 'attendance',
+      title: 'Attendance',
+      icon: 'time',
+      color: '#3b82f6',
+      description: 'Track employee attendance',
+      category: 'HR',
+      gradient: ['#1e40af', '#3b82f6', '#93c5fd'],
+    },
+
+    {
+      id: 'expense',
+      title: 'Expense',
+      icon: 'card',
+      color: '#8b5cf6',
+      description: 'Track business expenses',
+      category: 'Finance',
+      gradient: ['#6d28d9', '#8b5cf6', '#c4b5fd'],
+    },
+    {
+      id: 'salary',
+      title: 'Salary',
+      icon: 'cash',
+      color: '#10b981',
+      description: 'Manage salary payments',
+      category: 'HR',
+      gradient: ['#10b981', '#34d399', '#6ee7b7'],
+    },
+    {
+      id: 'document',
+      title: 'Document',
+      icon: 'document-text',
+      color: '#6366f1',
+      description: 'Store and manage documents',
+      category: 'Operations',
+      gradient: ['#6366f1', '#818cf8', '#a5b4fc'],
+    },
+    {
+      id: 'comment',
+      title: 'Comment',
+      icon: 'chatbubble',
+      color: '#06b6d4',
+      description: 'Add comments and notes',
+      category: 'Operations',
+      gradient: ['#06b6d4', '#22d3ee', '#67e8f9'],
+    },
+    {
+      id: 'manager',
+      title: 'Manager',
+      icon: 'person',
+      color: '#ec4899',
+      description: 'Manage team members',
+      category: 'HR',
+      gradient: ['#be185d', '#ec4899', '#f9a8d4'],
+    },
+    {
+      id: 'company',
+      title: 'Company',
+      icon: 'business',
+      color: '#f97316',
+      description: 'Company information',
+      category: 'Operations',
+      gradient: ['#f97316', '#fb923c', '#fdba74'],
+    },
+    {
+      id: 'order',
+      title: 'Order',
+      icon: 'receipt',
+      color: '#ef4444',
+      description: 'Manage orders and sales',
+      category: 'Sales',
+      gradient: ['#ef4444', '#f87171', '#fca5a5'],
+    },
+    {
+      id: 'payment',
+      title: 'Payment',
+      icon: 'card',
+      color: '#84cc16',
+      description: 'Process payments',
+      category: 'Finance',
+      gradient: ['#84cc16', '#a3e635', '#bef264'],
+    },
+    {
+      id: 'visit',
+      title: 'Visit',
+      icon: 'location',
+      color: '#8b5cf6',
+      description: 'Track site visits',
+      category: 'Operations',
+      gradient: ['#6d28d9', '#8b5cf6', '#c4b5fd'],
+    },
+    {
+      id: 'petty-expenses',
+      title: 'Petty Expenses',
+      icon: 'wallet',
+      color: '#f59e0b',
+      description: 'Small expense tracking',
+      category: 'Finance',
+      gradient: ['#b45309', '#f59e0b', '#fde68a'],
+    },
+    {
+      id: 'issue',
+      title: 'Issue',
+      icon: 'warning',
+      color: '#ef4444',
+      description: 'Report and track issues',
+      category: 'Support',
+      gradient: ['#b91c1c', '#ef4444', '#fca5a5'],
+    },
+  ];
+
+  const filteredModules = erpModules.filter((module) => {
+    const matchesSearch =
+      module.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      module.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || module.category === selectedCategory;
+    return matchesSearch && matchesCategory;
   });
 
-  // Animation values
-  const fadeAnim = useMemo(() => new Animated.Value(0), []);
-  const slideAnim = useMemo(() => new Animated.Value(50), []);
-  const pulseAnim = useMemo(() => new Animated.Value(1), []);
-  const progressAnim = useMemo(() => new Animated.Value(0), []);
-
-  const loadData = useCallback(async () => {
-    try {
-      const allData = await StorageService.getAllData();
-      const stats = await SyncService.getSyncStats();
-
-      // Sort by date collected (newest first)
-      const sortedData = allData.sort(
-        (a, b) => new Date(b.dateCollected).getTime() - new Date(a.dateCollected).getTime()
-      );
-
-      console.log('Loaded data:', sortedData.length, 'items');
-      setData(sortedData);
-      setSyncStats(stats);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load data');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+  // Helper functions to get or create animations
+  const getCardAnimations = (moduleId: string) => {
+    if (!cardAnimations[moduleId]) {
+      cardAnimations[moduleId] = {
+        cardScale: new Animated.Value(1),
+        iconScale: new Animated.Value(1),
+        glowAnim: new Animated.Value(0),
+      };
     }
-  }, []);
+    return cardAnimations[moduleId];
+  };
 
-  // Animation functions
-  const startAnimations = useCallback(() => {
+  const getChipAnimations = (category: string) => {
+    if (!chipAnimations[category]) {
+      chipAnimations[category] = {
+        chipScale: new Animated.Value(1),
+        chipGlow: new Animated.Value(0),
+      };
+    }
+    return chipAnimations[category];
+  };
+
+  useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 1000,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 600,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.spring(headerScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
 
-  const startPulseAnimation = useCallback(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
+    // Start background animations
+    const startBackgroundAnimations = () => {
+      // Floating animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(backgroundAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(backgroundAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Scale breathing animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(backgroundScale, {
+            toValue: 1.05,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(backgroundScale, {
+            toValue: 1,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Subtle rotation animation
+      Animated.loop(
+        Animated.timing(backgroundRotate, {
           toValue: 1,
-          duration: 1000,
+          duration: 20000,
+          useNativeDriver: true,
+        })
+      ).start();
+    };
+
+    startBackgroundAnimations();
+  }, [fadeAnim, slideAnim, headerScale, backgroundAnim, backgroundScale, backgroundRotate]);
+
+  const handleModulePress = (module: ERPModule) => {
+    if (module.id === 'task') {
+      console.log('Opening Task bottom sheet...');
+      setShowTaskBottomSheet(true);
+    } else if (module.id === 'leave') {
+      console.log('Opening Leave bottom sheet...');
+      setShowLeaveBottomSheet(true);
+    } else {
+      console.log(`Opening ${module.title} module`);
+    }
+  };
+
+  const handleTaskOptionPress = (option: any) => {
+    console.log(`Selected task option: ${option.title}`);
+    setShowTaskBottomSheet(false);
+  };
+
+  const handleLeaveOptionPress = (option: any) => {
+    console.log(`Selected leave option: ${option.title}`);
+    setShowLeaveBottomSheet(false);
+  };
+
+  const renderModule = (module: ERPModule, index: number) => {
+    const { cardScale, iconScale, glowAnim } = getCardAnimations(module.id);
+
+    const handlePressIn = () => {
+      Animated.parallel([
+        Animated.spring(cardScale, {
+          toValue: 0.95,
+          friction: 8,
+          tension: 40,
           useNativeDriver: true,
         }),
-      ])
-    ).start();
-  }, [pulseAnim]);
+        Animated.spring(iconScale, {
+          toValue: 1.1,
+          friction: 6,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
 
-  const animateProgress = useCallback(
-    (progress: number) => {
-      Animated.timing(progressAnim, {
-        toValue: progress,
-        duration: 1000,
-        useNativeDriver: false,
-      }).start();
-    },
-    [progressAnim]
-  );
+    const handlePressOut = () => {
+      Animated.parallel([
+        Animated.spring(cardScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.spring(iconScale, {
+          toValue: 1,
+          friction: 6,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
 
-  const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    loadData();
-  }, [loadData]);
-
-  const handleSync = useCallback(async () => {
-    if (isSyncing) return;
-
-    setIsSyncing(true);
-    try {
-      const result = await SyncService.syncPendingData();
-
-      if (result.success) {
-        Alert.alert('Sync Successful', `${result.syncedCount} records synced successfully`);
-      } else {
-        Alert.alert('Sync Failed', result.error || 'Failed to sync data');
-      }
-
-      // Reload data to update sync status
-      await loadData();
-    } catch (error) {
-      console.error('Sync error:', error);
-      Alert.alert('Error', 'Failed to sync data');
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [isSyncing, loadData]);
-
-  const handleDeleteRecord = useCallback(
-    (id: string, farmerName: string) => {
-      Alert.alert(
-        'Delete Record',
-        `Are you sure you want to delete the record for ${farmerName}?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await StorageService.deleteData(id);
-                await loadData();
-                Alert.alert('Success', 'Record deleted successfully');
-              } catch (error) {
-                console.error('Error deleting record:', error);
-                Alert.alert('Error', 'Failed to delete record');
-              }
+    return (
+      <Animated.View
+        key={module.id}
+        style={{
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 50],
+                outputRange: [0, 50 * (index % 2 === 0 ? 1 : 0.5)],
+                extrapolate: 'clamp',
+              }),
             },
-          },
-        ]
-      );
-    },
-    [loadData]
-  );
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useEffect(() => {
-    if (!isLoading && data.length > 0) {
-      startAnimations();
-    }
-  }, [isLoading, data.length, startAnimations]);
-
-  useEffect(() => {
-    if (isSyncing) {
-      startPulseAnimation();
-    } else {
-      pulseAnim.setValue(1);
-    }
-  }, [isSyncing, startPulseAnimation, pulseAnim]);
-
-  useEffect(() => {
-    const progress =
-      syncStats.totalRecords > 0 ? syncStats.syncedRecords / syncStats.totalRecords : 0;
-    animateProgress(progress);
-  }, [syncStats, animateProgress]);
-
-  const renderSyncStatus = (isSynced: boolean) => (
-    <View
-      style={[
-        styles.syncIndicator,
-        isSynced ? styles.synced : styles.pending,
-      ]}
-    />
-  );
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const renderDataItem = ({ item, index }: { item: AgricultureData; index: number }) => (
-    <View
-      style={[
-        styles.dataItem,
-        index === data.length - 1 ? styles.lastItem : styles.itemMargin,
-      ]}>
-      <View style={styles.dataItemHeader}>
-        <Text style={styles.farmerName}>{item.farmerName}</Text>
-        <View style={styles.syncContainer}>
-          {renderSyncStatus(item.isSynced)}
-          <Text style={styles.syncText}>{item.isSynced ? 'Synced' : 'Pending'}</Text>
-        </View>
-      </View>
-
-      <View style={styles.dataDetails}>
-        <Text style={styles.detailText}>
-          <Text style={styles.detailLabel}>Location:</Text> {item.location}
-        </Text>
-        <Text style={styles.detailText}>
-          <Text style={styles.detailLabel}>Crop:</Text> {item.cropType}
-        </Text>
-        <Text style={styles.detailText}>
-          <Text style={styles.detailLabel}>Land Size:</Text> {item.landSize} acres
-        </Text>
-        <Text style={styles.detailText}>
-          <Text style={styles.detailLabel}>Irrigation:</Text> {item.irrigationMethod}
-        </Text>
-        <Text style={styles.detailText}>
-          <Text style={styles.detailLabel}>Date:</Text> {formatDate(item.dateCollected)}
-        </Text>
-      </View>
-
-      {/* Image Display */}
-      {item.imageUri && (
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: item.imageUri }} style={styles.fieldImage} />
-        </View>
-      )}
-
-      <View style={styles.dataActions}>
+            { scale: cardScale },
+          ],
+        }}>
         <TouchableOpacity
-          onPress={() => handleDeleteRecord(item.id, item.farmerName)}
-          style={styles.deleteButton}>
-          <Text style={styles.deleteButtonText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+          onPress={() => handleModulePress(module)}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          className="mb-6 rounded-3xl "
+          activeOpacity={1}
+          style={{
+            shadowColor: module.color,
+            shadowOffset: { width: 0, height: 16 },
+            shadowOpacity: 0.25,
+            shadowRadius: 24,
+            elevation: 16,
+          }}>
+          {/* Enhanced Background Gradient */}
+          <LinearGradient
+            colors={[
+              module.gradient[0],
+              module.gradient[1],
+              module.gradient[2],
+              module.gradient[0],
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            className="absolute inset-0 rounded-3xl"
+            style={{ opacity: 1, borderRadius: 20 }}
+          />
 
-  const renderEmptyState = () => {
-    const agriculturalTips = [
-      '🌾 Monitor soil moisture regularly for optimal crop growth',
-      '🌱 Use crop rotation to maintain soil fertility',
-      '💧 Implement efficient irrigation systems to conserve water',
-      '📊 Track weather patterns to plan planting schedules',
-      '🌿 Regular pest monitoring helps prevent crop damage',
-      '📈 Keep detailed records for better decision making',
-    ];
+          {/* Glow Effect */}
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: -2,
+              left: -2,
+              right: -2,
+              bottom: -2,
+              borderRadius: 25,
+              opacity: glowAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.6],
+              }),
+              backgroundColor: module.color,
+              shadowColor: module.color,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 1,
+              shadowRadius: 20,
+              elevation: 20,
+            }}
+          />
 
-    const randomTip = agriculturalTips[Math.floor(Math.random() * agriculturalTips.length)];
+          <View className="p-6">
+            {/* Header Row */}
+            <View className="mb-4 flex-row items-center justify-between">
+              <Animated.View
+                style={{
+                  transform: [{ scale: iconScale }],
+                  backgroundColor: module.color + '15',
+                  shadowColor: module.color,
+                  shadowOffset: { width: 0, height: 8 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 16,
+                  elevation: 8,
+                }}
+                className="rounded-3xl p-4">
+                <Ionicons name={module.icon as any} size={32} color="white" />
+              </Animated.View>
 
-    const onboardingSteps = [
-      {
-        icon: '📝',
-        title: 'Step 1: Collect Data',
-        description: 'Tap the "Add Data" button to start recording your agricultural information',
-        action: 'Add your first field data',
-      },
-      {
-        icon: '📷',
-        title: 'Step 2: Take Photos',
-        description: 'Capture field images to document crop conditions and progress',
-        action: 'Document your fields',
-      },
-      {
-        icon: '☁️',
-        title: 'Step 3: Auto Sync',
-        description: 'Your data automatically syncs when internet is available',
-        action: 'Stay connected',
-      },
-      {
-        icon: '📊',
-        title: 'Step 4: View Analytics',
-        description: 'Check the Statistics tab to see insights and trends',
-        action: 'Analyze your data',
-      },
-    ];
-
-    return (
-      <View
-        style={[
-          styles.emptyState,
-          {
-            paddingBottom: insets.bottom,
-          },
-        ]}>
-          <ScrollView 
-          
-           showsVerticalScrollIndicator={false}>
-        
-        {/* Welcome Header */}
-        <View style={styles.emptyStateIcon}>
-          <Text style={styles.emoji}>🌱</Text>
-        </View>
-
-        <Text style={styles.emptyStateTitle}>Welcome to Smart Farming!</Text>
-        <Text style={styles.emptyStateSubtitle}>
-          Your digital agriculture companion for data-driven farming decisions
-        </Text>
-
-        {/* No Data Indicator */}
-        <View style={styles.noDataIndicator}>
-          <View style={styles.noDataHeader}>
-            <Text style={styles.noDataIcon}>📊</Text>
-            <Text style={styles.noDataTitle}>No Data Yet</Text>
-          </View>
-          <Text style={styles.noDataDescription}>
-            You haven&apos;t collected any agricultural data yet. Follow the guide below to get
-            started!
-          </Text>
-        </View>
-
-        {/* Onboarding Steps */}
-        <View style={styles.onboardingCard}>
-          <View style={styles.onboardingHeader}>
-            <Text style={styles.onboardingIcon}>🚀</Text>
-            <Text style={styles.onboardingTitle}>Getting Started Guide</Text>
-          </View>
-
-          <Text style={styles.onboardingSubtitle}>
-            Follow these simple steps to begin your smart farming journey:
-          </Text>
-
-          {onboardingSteps.map((step, index) => (
-            <View key={index} style={styles.stepItem}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>{index + 1}</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepIcon}>{step.icon}</Text>
-                  <Text style={styles.stepTitle}>{step.title}</Text>
+              <View className="flex-row items-center text-white">
+                <View
+                  className="rounded-full px-4 py-2"
+                  style={{ backgroundColor: module.color + '12' }}>
+                  <Text className="text-xs font-bold uppercase tracking-wide text-white">
+                    {module.category}
+                  </Text>
                 </View>
-                <Text style={styles.stepDescription}>{step.description}</Text>
-                <Text style={styles.stepAction}>{step.action}</Text>
+                <View className="ml-3 rounded-full bg-gray-100 p-2">
+                  <Ionicons name="chevron-forward" size={18} color={module.color} />
+                </View>
               </View>
             </View>
-          ))}
-        </View>
 
-        {/* Agricultural Tip Card */}
-        <View style={styles.tipCard}>
-          <View style={styles.tipHeader}>
-            <Text style={styles.tipIcon}>💡</Text>
-            <Text style={styles.tipTitle}>Today&apos;s Agricultural Tip</Text>
-          </View>
-          <Text style={styles.tipText}>{randomTip}</Text>
-        </View>
+            {/* Content */}
+            <View className="mb-4">
+              <Text className="mb-2 text-2xl font-bold text-white">{module.title}</Text>
+              <Text className="text-base leading-6 text-white">{module.description}</Text>
+            </View>
 
-        {/* Quick Stats */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Why Track Agricultural Data?</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>25%</Text>
-              <Text style={styles.statLabel}>Yield Increase</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>30%</Text>
-              <Text style={styles.statLabel}>Water Savings</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>40%</Text>
-              <Text style={styles.statLabel}>Cost Reduction</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>50%</Text>
-              <Text style={styles.statLabel}>Better Decisions</Text>
+            {/* Enhanced Footer */}
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <View
+                  className="mr-2 h-2 w-2 rounded-full"
+                  style={{ backgroundColor: module.color }}
+                />
+                <Text className="text-sm font-medium text-white">Tap to explore</Text>
+              </View>
+
+              <View className="flex-row items-center">
+                <Ionicons name="arrow-forward" size={16} color={module.color} />
+              </View>
             </View>
           </View>
-        </View>
-
-        {/* Features List */}
-        <View style={styles.featuresCard}>
-          <Text style={styles.featuresTitle}>What You Can Track</Text>
-          <View style={styles.featuresList}>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>🌾</Text>
-              <Text style={styles.featureText}>Crop Types & Varieties</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>📏</Text>
-              <Text style={styles.featureText}>Land Size & Boundaries</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>💧</Text>
-              <Text style={styles.featureText}>Irrigation Methods</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>📷</Text>
-              <Text style={styles.featureText}>Field Photos</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>📊</Text>
-              <Text style={styles.featureText}>Performance Analytics</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>☁️</Text>
-              <Text style={styles.featureText}>Cloud Sync</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Call to Action */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('DataCollection')}
-          className='bg-green-600 rounded-lg px-6 py-3 shadow-lg flex-row items-center justify-center mt-4 mb-8 text-white'
-          
-          >
-          <Text className='text-white font-bold'>🚀 Start Collecting Data</Text>
         </TouchableOpacity>
-
-        {/* Additional Actions */}
-        <View style={styles.additionalActions}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Statistics')}
-            style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>📊 View Statistics</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Settings')}
-            style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>⚙️ Settings</Text>
-          </TouchableOpacity>
-        </View>
-        </ScrollView>
-      </View>
+      </Animated.View>
     );
   };
 
-  if (isLoading) {
+  const renderCategoryChip = (category: string, index: number) => {
+    const { chipScale, chipGlow } = getChipAnimations(category);
+
+    const handleChipPressIn = () => {
+      Animated.parallel([
+        Animated.spring(chipScale, {
+          toValue: 0.95,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(chipGlow, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+
+    const handleChipPressOut = () => {
+      Animated.parallel([
+        Animated.spring(chipScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(chipGlow, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+
+    const isSelected = selectedCategory === category;
+    const chipColor = isSelected ? '#10b981' : '#6b7280';
+
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
-        <ActivityIndicator size="large" color="#00963f" />
-        <Text style={styles.loadingText}>Loading data...</Text>
-      </SafeAreaView>
+      <Animated.View
+        key={category}
+        style={{
+          opacity: fadeAnim,
+          transform: [
+            {
+              translateX: slideAnim.interpolate({
+                inputRange: [0, 50],
+                outputRange: [0, 20 * index],
+                extrapolate: 'clamp',
+              }),
+            },
+            { scale: chipScale },
+          ],
+        }}>
+        <TouchableOpacity
+          onPress={() => setSelectedCategory(category)}
+          onPressIn={handleChipPressIn}
+          onPressOut={handleChipPressOut}
+          className={`mr-4 rounded-2xl px-6 py-4 ${isSelected ? 'bg-emerald-500' : 'bg-white'}`}
+          style={{
+            shadowColor: chipColor,
+            shadowOffset: { width: 0, height: isSelected ? 8 : 4 },
+            shadowOpacity: isSelected ? 0.4 : 0.15,
+            shadowRadius: isSelected ? 16 : 8,
+            elevation: isSelected ? 12 : 4,
+          }}>
+          {/* Glow Effect */}
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: -1,
+              left: -1,
+              right: -1,
+              bottom: -1,
+              borderRadius: 16,
+              opacity: chipGlow.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.8],
+              }),
+              backgroundColor: chipColor,
+              shadowColor: chipColor,
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 1,
+              shadowRadius: 12,
+              elevation: 8,
+            }}
+          />
+
+          <View className="flex-row items-center">
+            <View
+              className="mr-3 h-2 w-2 rounded-full"
+              style={{ backgroundColor: isSelected ? 'white' : chipColor }}
+            />
+            <Text className={`text-sm font-bold ${isSelected ? 'text-white' : 'text-gray-700'}`}>
+              {category}
+            </Text>
+            {isSelected && (
+              <View className="ml-2 rounded-full bg-white/20 p-1">
+                <Ionicons name="checkmark" size={12} color="white" />
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
-  }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#00963f" />
-      <ConnectivityStatus />
-      
-      {/* Header with Gradient Background */}
-      <LinearGradient
-        colors={['#00963f', '#f7a607']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.headerGradient}>
-        <View style={styles.headerContent}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.title}>Agriculture Data</Text>
-              {user && <Text style={styles.welcomeText}>Welcome, {user.user_name}</Text>}
-            </View>
-            <LinearGradient
-              colors={['#00963f', '#00cc55']}
-              style={styles.primaryButton}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}>
-              <TouchableOpacity onPress={() => navigation.navigate('DataCollection')}>
-                <Text style={styles.primaryButtonText}>+ Add Data</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      className="flex-1 bg-white"
+      ref={scrollViewRef}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" />
 
-          {/* Sync Status Card */}
-          <View style={styles.syncCard}>
-            <View style={styles.syncCardHeader}>
-              <Text style={styles.syncCardTitle}>Sync Status</Text>
-              <LinearGradient
-                colors={
-                  isSyncing || syncStats.pendingRecords === 0
-                    ? ['#cccccc', '#aaaaaa']
-                    : ['#f7ac07', '#ffc107']
-                }
-                style={[
-                  styles.syncButton,
-                  (isSyncing || syncStats.pendingRecords === 0) && styles.disabledButton,
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}>
-                <TouchableOpacity
-                  onPress={handleSync}
-                  disabled={isSyncing || syncStats.pendingRecords === 0}>
-                  {isSyncing ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Text style={styles.syncButtonText}>Sync Now</Text>
-                  )}
-                </TouchableOpacity>
-              </LinearGradient>
-            </View>
+      {/* Enhanced Header with Animated Pattern Background */}
+      <View className="overflow-hidden rounded-bl-3xl">
+        <ImageBackground
+          source={require('../../assets/patt.png')}
+          resizeMode="cover"
+          className="rounded-b-3xl"
+          style={{
+            paddingTop: insets.top + 16,
+            elevation: 8,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            borderBottomLeftRadius: 20,
+            borderBottomRightRadius: 1000,
+          }}>
+          {/* Animated Background Image Overlay */}
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              transform: [
+                {
+                  translateY: backgroundAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -10],
+                  }),
+                },
+                {
+                  scale: backgroundScale,
+                },
+                {
+                  rotate: backgroundRotate.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '2deg'],
+                  }),
+                },
+              ],
+            }}>
+            <ImageBackground
+              source={require('../../assets/patt.png')}
+              resizeMode="cover"
+              className="absolute inset-0 rounded-b-3xl"
+              style={{ opacity: 0.3 }}
+            />
+          </Animated.View>
 
-            {/* Progress Bar */}
-            <View style={styles.progressContainer}>
-              <View style={styles.progressLabels}>
-                <Text style={styles.progressLabel}>Sync Progress</Text>
-                <Text style={styles.progressLabel}>
-                  {syncStats.totalRecords > 0
-                    ? Math.round((syncStats.syncedRecords / syncStats.totalRecords) * 100)
-                    : 0}
-                  %
-                </Text>
-              </View>
-              <View style={styles.progressBarBackground}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: syncStats.totalRecords > 0 
-                        ? `${(syncStats.syncedRecords / syncStats.totalRecords) * 100}%` 
-                        : '0%',
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-
-            <View style={styles.statsContainer}>
-              <View>
-                <Text style={styles.statText}>Total Records: {syncStats.totalRecords}</Text>
-                <Text style={[styles.statText, styles.syncedText]}>
-                  Synced: {syncStats.syncedRecords}
-                </Text>
-              </View>
-              <View style={styles.statsRight}>
-                <Text style={[styles.statText, styles.pendingText]}>
-                  Pending: {syncStats.pendingRecords}
-                </Text>
-                {syncStats.lastSyncTime && (
-                  <Text style={styles.lastSyncText}>
-                    Last sync: {formatDate(syncStats.lastSyncTime)}
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-        </View>
-      </LinearGradient>
-
-      {/* Data List or Empty State */}
-      <View style={styles.mainContent}>
-        {data.length === 0 ? (
-          renderEmptyState()
-        ) : (
-          <FlatList
-            data={data}
-            renderItem={({ item, index }) => renderDataItem({ item, index })}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingBottom: Math.max(insets.bottom, 20) },
-            ]}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                colors={['#00963f']}
-                tintColor="#00963f"
-              />
-            }
+          {/* Overlay Gradient */}
+          <LinearGradient
+            colors={['#047857', '#065f46', '#059669', '#10b981']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            className="absolute inset-0 rounded-b-3xl"
+            style={{ opacity: 0.85 }}
           />
-        )}
+
+          <Animated.View style={{ transform: [{ scale: headerScale }] }} className="mb-6">
+            <View className="mb-4 flex-row items-center justify-between px-6">
+              <View className="flex-1">
+                <View className="mb-2 flex-row items-center">
+                  <View className="mr-3 rounded-2xl bg-white/20 p-2">
+                    <Ionicons name="sunny" size={20} color="white" />
+                  </View>
+                  <Text className="text-lg font-medium text-white/90">Good morning!</Text>
+                </View>
+                <Text className="mb-1 text-3xl font-bold text-white">ERPNext</Text>
+                <Text className="text-base text-white/80">Manage your business efficiently</Text>
+              </View>
+
+              <TouchableOpacity
+                className="relative rounded-2xl bg-white/20 p-3"
+                style={{
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}>
+                <Ionicons name="notifications" size={24} color="white" />
+                <View className="absolute -right-1 -top-1 h-5 w-5 items-center justify-center rounded-full border-2 border-emerald-900 bg-red-500">
+                  <Text className="text-center text-xs font-bold text-white">3</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Enhanced Search Bar */}
+            <View className="px-6">
+              <Animated.View
+                className={`mb-4 rounded-2xl bg-white p-4 ${
+                  isSearchFocused ? 'shadow-lg' : 'shadow-sm'
+                }`}
+                style={{
+                  shadowColor: isSearchFocused ? '#10b981' : '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: isSearchFocused ? 0.2 : 0.1,
+                  shadowRadius: isSearchFocused ? 16 : 8,
+                  elevation: isSearchFocused ? 8 : 2,
+                  transform: [{ scale: isSearchFocused ? 1.02 : 1 }],
+                }}>
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name="search"
+                    size={22}
+                    color={isSearchFocused ? '#10b981' : '#9ca3af'}
+                  />
+                  <TextInput
+                    placeholder="Search modules..."
+                    placeholderTextColor="#9ca3af"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setIsSearchFocused(false)}
+                    className="ml-3 flex-1 text-base text-gray-800"
+                    selectionColor="#10b981"
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                      <Ionicons name="close-circle" size={20} color="#9ca3af" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </Animated.View>
+            </View>
+
+            {/* Enhanced Category Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mb-2 pl-6"
+              contentContainerStyle={{ paddingRight: 16 }}>
+              {categories.map((category, index) => renderCategoryChip(category, index))}
+            </ScrollView>
+          </Animated.View>
+        </ImageBackground>
       </View>
-    </SafeAreaView>
+
+      {/* Modules Grid */}
+      <ScrollView
+        ref={scrollViewRef}
+        className="-mt-8 mt-4 flex-1 px-6"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 24, paddingBottom: 100 }}>
+        {filteredModules.length === 0 ? (
+          <View className="items-center justify-center py-20">
+            <Ionicons name="search-outline" size={64} color="#d1d5db" />
+            <Text className="mt-4 text-xl font-semibold text-gray-400">No modules found</Text>
+            <Text className="mt-2 text-center text-gray-400">
+              Try adjusting your search or filter criteria
+            </Text>
+          </View>
+        ) : (
+          filteredModules.map((module, index) => renderModule(module, index))
+        )}
+      </ScrollView>
+
+      {/* Task Bottom Sheet */}
+      <BottomSheet
+        visible={showTaskBottomSheet}
+        onClose={() => setShowTaskBottomSheet(false)}
+        title="Task Management"
+        options={taskOptions}
+        onOptionPress={handleTaskOptionPress}
+      />
+
+      {/* Leave Bottom Sheet */}
+      <BottomSheet
+        visible={showLeaveBottomSheet}
+        onClose={() => setShowLeaveBottomSheet(false)}
+        title="Leave Management"
+        options={leaveOptions}
+        onOptionPress={handleLeaveOptionPress}
+      />
+    </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  headerGradient: {
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  headerContent: {
-    paddingHorizontal: 16,
-  },
-  mainContent: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-  },
-  loadingText: {
-    marginTop: 16,
-    color: '#6c757d',
-  },
-  header: {
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  welcomeText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  primaryButton: {
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  primaryButtonText: {
-    fontWeight: '600',
-    color: 'white',
-    textAlign: 'center',
-  },
-  syncCard: {
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: 'white',
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
-  },
-  syncCardHeader: {
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  syncCardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2d3748',
-  },
-  syncButton: {
-    borderRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-  syncButtonText: {
-    fontWeight: '600',
-    color: 'white',
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressLabels: {
-    marginBottom: 4,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressLabel: {
-    fontSize: 12,
-    color: '#6c757d',
-  },
-  progressBarBackground: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#e2e8f0',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#00963f',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statsRight: {
-    alignItems: 'flex-end',
-  },
-  statText: {
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  syncedText: {
-    color: '#00963f',
-    fontWeight: '500',
-  },
-  pendingText: {
-    color: '#f7ac07',
-    fontWeight: '500',
-  },
-  lastSyncText: {
-    fontSize: 12,
-    color: '#a0aec0',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-  },
-  dataItem: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: 'white',
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
-  },
-  itemMargin: {
-    marginBottom: 12,
-  },
-  lastItem: {
-    marginBottom: 0,
-  },
-  dataItemHeader: {
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  farmerName: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2d3748',
-  },
-  syncContainer: {
-    marginLeft: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  syncIndicator: {
-    height: 12,
-    width: 12,
-    borderRadius: 6,
-  },
-  synced: {
-    backgroundColor: '#00963f',
-  },
-  pending: {
-    backgroundColor: '#f7ac07',
-  },
-  syncText: {
-    marginLeft: 4,
-    fontSize: 12,
-    color: '#6c757d',
-  },
-  dataDetails: {
-    marginBottom: 12,
-    gap: 4,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#4a5568',
-  },
-  detailLabel: {
-    fontWeight: '500',
-    color: '#2d3748',
-  },
-  dataActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  deleteButton: {
-    borderRadius: 4,
-    backgroundColor: '#fed7d7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  deleteButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#c53030',
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  emptyStateIcon: {
-    marginBottom: 16,
-    height: 64,
-    width: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 32,
-    backgroundColor: '#e6fffa',
-  },
-  emoji: {
-    fontSize: 32,
-  },
-  emptyStateTitle: {
-    marginBottom: 8,
-    fontSize: 18,
-    color: '#6c757d',
-  },
-  emptyStateSubtitle: {
-    marginBottom: 24,
-    textAlign: 'center',
-    color: '#a0aec0',
-  },
-  imageContainer: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  fieldImage: {
-    width: 150,
-    height: 100,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  // Enhanced Empty State Styles
-  tipCard: {
-    backgroundColor: '#fff3cd',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#f7ac07',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  tipIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400e',
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#92400e',
-    lineHeight: 20,
-  },
-  statsCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2d3748',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    width: '48%',
-    alignItems: 'center',
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#00963f',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6c757d',
-    textAlign: 'center',
-  },
-  featuresCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  featuresTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2d3748',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  featuresList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  featureItem: {
-    width: '48%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    padding: 8,
-  },
-  featureIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  featureText: {
-    fontSize: 12,
-    color: '#4a5568',
-    flex: 1,
-  },
-  additionalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-    paddingHorizontal: 20,
-  },
-  secondaryButton: {
-    backgroundColor: '#e2e8f0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flex: 0.48,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    color: '#4a5568',
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  // Onboarding Styles
-  onboardingCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-    borderLeftWidth: 4,
-    borderLeftColor: '#00963f',
-  },
-  onboardingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  onboardingIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  onboardingTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2d3748',
-  },
-  onboardingSubtitle: {
-    fontSize: 14,
-    color: '#6c757d',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    paddingVertical: 8,
-  },
-  stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#00963f',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  stepNumberText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  stepContent: {
-    flex: 1,
-  },
-  stepHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  stepIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  stepTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2d3748',
-  },
-  stepDescription: {
-    fontSize: 13,
-    color: '#6c757d',
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  stepAction: {
-    fontSize: 12,
-    color: '#00963f',
-    fontWeight: '500',
-    fontStyle: 'italic',
-  },
-  // No Data Indicator Styles
-  noDataIndicator: {
-    backgroundColor: '#fef3c7',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#f59e0b',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  noDataHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  noDataIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  noDataTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400e',
-  },
-  noDataDescription: {
-    fontSize: 14,
-    color: '#92400e',
-    lineHeight: 20,
-  },
-});

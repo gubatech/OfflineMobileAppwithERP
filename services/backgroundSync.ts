@@ -161,4 +161,3 @@ export class BackgroundSyncService {
     this.isInitialized = false;
   }
 }
-

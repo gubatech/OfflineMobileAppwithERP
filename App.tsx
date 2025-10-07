@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AppNavigator } from './navigation/AppNavigator';
 import { BackgroundSyncService } from './services/backgroundSync';
 import { AuthProvider } from './contexts/AuthContext';
+import Toast from 'react-native-toast-message';
 import 'react-native-gesture-handler';
 
 import './global.css';
@@ -22,6 +23,7 @@ export default function App() {
     <AuthProvider>
       <AppNavigator />
       <StatusBar style="dark" />
+      <Toast />
     </AuthProvider>
   );
 }

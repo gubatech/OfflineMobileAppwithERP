@@ -1,55 +1,51 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LoginRequest, LoginResponse, User, AuthState } from '../types/auth';
+import { LoginResponse, User, AuthState } from '../types/auth';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
-const API_BASE_URL =
-  'https://tourism.ettelerp.com/api/method/scope.mfun.doctype.dfun.dfun.login_dfun';
 
 export class AuthService {
-  // Login user
+  // Login user (bypass API for now)
   static async login(
     identifier: string,
     password: string
   ): Promise<{ success: boolean; error?: string; data?: LoginResponse }> {
     try {
-      const payload: LoginRequest = {
-        identifier,
-        passwordm: password,
+      // For now, allow any login without API call
+      // TODO: Implement real API call when backend is ready
+
+      // Simulate successful login
+      const mockUser: User = {
+        full_name: identifier === 'sewunet' ? 'Sewunet Abebaw' : 'Demo User',
+        user: identifier === 'sewunet' ? 'sewunet.abebaw@gubatech.com' : `${identifier}@demo.com`,
+        employee_id: identifier === 'sewunet' ? 'HR-EMP-00016' : 'HR-EMP-00001',
+        gender: 'Male',
+        key_details: {
+          api_secret: 'mock_api_secret',
+          api_key: 'mock_api_key',
+        },
       };
 
-      const response = await fetch(API_BASE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      // Store mock token and user data
+      await this.storeAuthData('mock_token_' + Date.now(), mockUser);
 
-      if (!response.ok) {
-        return {
-          success: false,
-          error: `HTTP ${response.status}: ${response.statusText}`,
-        };
-      }
+      const mockResponse: LoginResponse = {
+        message: 'Logged In',
+        home_page: '/app',
+        full_name: mockUser.full_name,
+        user: mockUser.user,
+        key_details: mockUser.key_details,
+        employee_id: mockUser.employee_id,
+        gender: mockUser.gender,
+        data: [],
+      };
 
-      const data: LoginResponse = await response.json();
-
-      if (data.message.status === 'success') {
-        // Store token and user data
-        await this.storeAuthData(data.message.token, data.message.user);
-        return { success: true, data };
-      } else {
-        return {
-          success: false,
-          error: data.message.message || 'Login failed',
-        };
-      }
+      return { success: true, data: mockResponse };
     } catch (error) {
       console.error('Login error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Network error',
+        error: error instanceof Error ? error.message : 'Login failed',
       };
     }
   }
